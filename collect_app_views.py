@@ -18,7 +18,7 @@ API_BASE = os.environ["DOMINO_API_PROXY"]
 PROJECT_NAME = os.environ["DOMINO_PROJECT_NAME"]
 DATASET_PATH = f"/domino/datasets/local/{PROJECT_NAME}"
 CSV_FILE = os.path.join(DATASET_PATH, "app_views.csv")
-CSV_HEADERS = ["snapshot_date", "app_id", "app_name", "owner", "views"]
+CSV_HEADERS = ["snapshot_date", "app_id", "app_name", "owner", "visibility", "views"]
 PAGE_SIZE = 100
 
 
@@ -56,6 +56,7 @@ def extract_row(app, snapshot_date):
         "app_id": app.get("id", ""),
         "app_name": app.get("name", ""),
         "owner": app.get("project", {}).get("ownerUsername", ""),
+        "visibility": app.get("visibility", ""),
         "views": app.get("views", 0),
     }
 

@@ -16,6 +16,13 @@ import streamlit as st
 PROJECT_NAME = os.environ.get("DOMINO_PROJECT_NAME", "")
 CSV_FILE = f"/domino/datasets/local/{PROJECT_NAME}/app_views.csv"
 
+VISIBILITY_LABELS = {
+    "PUBLIC": "Public (Anonymous Access)",
+    "AUTHENTICATED": "Authenticated (Anyone with an account)",
+    "GRANT_BASED": "Grant-Based (Invited users, others may request)",
+    "GRANT_BASED_STRICT": "Grant-Based Strict (Invited users only)",
+}
+
 st.set_page_config(page_title="App Views Dashboard", layout="wide")
 st.title("Domino App Views Dashboard")
 
@@ -23,13 +30,14 @@ st.title("Domino App Views Dashboard")
 def load_data(path):
     """Read CSV fresh on every call — no caching."""
     df = pd.read_csv(path, parse_dates=["snapshot_date"])
-    df["snapshot_date"] = pd.to_datetime(df["snapshot_date"])
     df = df.sort_values(["app_id", "snapshot_date"])
 
     # Compute views per period as delta between consecutive snapshots per app.
     # First snapshot for each app has no prior value, so delta = views itself.
     df["views_period"] = df.groupby("app_id")["views"].diff().fillna(df["views"])
     df["views_period"] = df["views_period"].clip(lower=0).astype(int)
+
+    df["visibility_label"] = df["visibility"].map(VISIBILITY_LABELS).fillna(df["visibility"])
 
     return df
 
@@ -50,8 +58,23 @@ selected_owners = st.sidebar.multiselect("Owner", all_owners, default=all_owners
 all_apps = sorted(df[df["owner"].isin(selected_owners)]["app_name"].unique())
 selected_apps = st.sidebar.multiselect("App", all_apps, default=all_apps)
 
+all_visibility = sorted(df["visibility"].dropna().unique())
+selected_visibility = st.sidebar.multiselect(
+    "Visibility",
+    options=all_visibility,
+    default=all_visibility,
+    format_func=lambda v: VISIBILITY_LABELS.get(v, v),
+)
+
+st.sidebar.divider()
+st.sidebar.caption("**Visibility legend**")
+for code, label in VISIBILITY_LABELS.items():
+    st.sidebar.caption(f"- **{code}**: {label}")
+
 filtered = df[
-    df["owner"].isin(selected_owners) & df["app_name"].isin(selected_apps)
+    df["owner"].isin(selected_owners)
+    & df["app_name"].isin(selected_apps)
+    & df["visibility"].isin(selected_visibility)
 ]
 
 # --- Summary Metrics ---
@@ -95,8 +118,12 @@ st.divider()
 # --- Raw Data Table ---
 st.subheader("Raw Data")
 st.dataframe(
-    filtered[["snapshot_date", "app_name", "owner", "views", "views_period"]]
-    .rename(columns={"views": "cumulative_views", "views_period": "period_views"})
+    filtered[["snapshot_date", "app_name", "owner", "visibility_label", "views", "views_period"]]
+    .rename(columns={
+        "visibility_label": "visibility",
+        "views": "cumulative_views",
+        "views_period": "period_views",
+    })
     .sort_values(["snapshot_date", "app_name"], ascending=[False, True]),
     use_container_width=True,
 )
