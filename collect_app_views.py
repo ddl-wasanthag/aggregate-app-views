@@ -29,7 +29,7 @@ def fetch_json(url):
 
 
 def get_all_apps():
-    """Fetch all apps with pagination."""
+    """Fetch all apps with pagination using totalCount from response metadata."""
     apps = []
     offset = 0
 
@@ -41,11 +41,16 @@ def get_all_apps():
         data = fetch_json(url)
         items = data.get("items", [])
         apps.extend(items)
+        offset += len(items)
 
-        # Stop if we got fewer items than page size (last page)
-        if len(items) < PAGE_SIZE:
-            break
-        offset += PAGE_SIZE
+        total_count = data.get("metadata", {}).get("totalCount")
+        if total_count is not None:
+            if offset >= total_count:
+                break
+        else:
+            # Fallback if metadata is unavailable
+            if len(items) < PAGE_SIZE:
+                break
 
     return apps
 
